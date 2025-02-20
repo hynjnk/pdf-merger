@@ -20,6 +20,9 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
+env:
+  BASE_PATH: 'pdf-merger'
+
 jobs:
   build: 
     runs-on: ubuntu-latest
