@@ -1,10 +1,11 @@
 import { createSignal, For, Show } from "solid-js";
 import { PDFDocument } from "pdf-lib";
+import { FileUpload } from "@ark-ui/solid/file-upload";
 
 // Helper function to download a blob
 const saveAs = (blob: Blob, fileName: string) => {
   const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
+  const link = document.createElement("a");
   link.href = url;
   link.download = fileName;
   document.body.appendChild(link);
@@ -14,42 +15,11 @@ const saveAs = (blob: Blob, fileName: string) => {
 };
 
 export default function Home() {
-  const [pdfFiles, setPdfFiles] = createSignal<File[]>([]);
   const [isMerging, setIsMerging] = createSignal<boolean>(false);
   const [fileName, setFileName] = createSignal<string>("merged.pdf");
 
-  const handlePdfFilesChange = (event: Event) => {
-    const target = event.target as HTMLInputElement;
-    if (target.files && target.files.length > 0) {
-      const filesArray = Array.from(target.files);
-      setPdfFiles(filesArray);
-    }
-  };
-
-  const removeFile = (index: number) => {
-    setPdfFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const moveFileUp = (index: number) => {
-    if (index === 0) return;
-    setPdfFiles(prev => {
-      const newFiles = [...prev];
-      [newFiles[index - 1], newFiles[index]] = [newFiles[index], newFiles[index - 1]];
-      return newFiles;
-    });
-  };
-
-  const moveFileDown = (index: number) => {
-    if (index === pdfFiles().length - 1) return;
-    setPdfFiles(prev => {
-      const newFiles = [...prev];
-      [newFiles[index], newFiles[index + 1]] = [newFiles[index + 1], newFiles[index]];
-      return newFiles;
-    });
-  };
-
-  const mergePdfs = async () => {
-    if (pdfFiles().length === 0) {
+  const mergePdfs = async (files: File[]) => {
+    if (files.length === 0) {
       alert("Please select at least one PDF file.");
       return;
     }
@@ -58,26 +28,26 @@ export default function Home() {
     try {
       // Create a new PDF document
       const mergedPdf = await PDFDocument.create();
-      
+
       // Process each PDF file
-      for (const file of pdfFiles()) {
+      for (const file of files) {
         const fileBytes = await file.arrayBuffer();
         const pdfDoc = await PDFDocument.load(fileBytes);
-        
+
         // Copy all pages from the current PDF
         const copiedPages = await mergedPdf.copyPages(
           pdfDoc,
           pdfDoc.getPageIndices()
         );
-        
+
         // Add each copied page to the merged PDF
-        copiedPages.forEach(page => mergedPdf.addPage(page));
+        copiedPages.forEach((page) => mergedPdf.addPage(page));
       }
 
       // Save the merged PDF
       const mergedPdfBytes = await mergedPdf.save();
       const blob = new Blob([mergedPdfBytes], { type: "application/pdf" });
-      
+
       // Download the merged PDF
       saveAs(blob, fileName());
     } catch (error) {
@@ -93,85 +63,70 @@ export default function Home() {
       <h1 class="text-4xl md:text-6xl text-sky-700 font-thin uppercase my-8 md:my-16">
         PDF Merger
       </h1>
-      
-      <div class="mb-6">
-        <label class="block text-gray-700 text-lg font-bold mb-4">
-          Select multiple PDF files:
+
+      <div class="mb-6 mt-4">
+        <label
+          class="block text-gray-700 text-sm font-bold mb-2"
+          for="fileName"
+        >
+          Output filename:
         </label>
         <input
-          type="file"
-          id="pdfFiles"
-          accept="application/pdf"
-          multiple
-          onChange={handlePdfFilesChange}
-          class="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          type="text"
+          id="fileName"
+          value={fileName()}
+          onInput={(e) => setFileName(e.target.value)}
+          class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
         />
       </div>
 
-      <Show when={pdfFiles().length > 0}>
-        <div class="mb-6">
-          <label class="block text-gray-700 text-lg font-bold mb-2">
-            File order (use buttons to reorder):
-          </label>
-          <div class="bg-gray-100 p-4 rounded">
-            <For each={pdfFiles()}>
-              {(file, index) => (
-                <div class="flex items-center justify-between p-3 mb-2 bg-white rounded shadow">
-                  <div class="truncate max-w-xs">{file.name}</div>
-                  <div class="flex space-x-2">
-                    <button 
-                      onClick={() => moveFileUp(index())}
-                      disabled={index() === 0}
-                      class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
-                      title="Move Up"
+      <FileUpload.Root class="mb-6" maxFiles={5} accept="application/pdf">
+        <FileUpload.Label class="block text-gray-700 text-lg font-bold mb-4">
+          File Upload
+        </FileUpload.Label>
+        <FileUpload.Dropzone class="p-6 mb-4 bg-gray-50 rounded">
+          Drag your PDF files here
+        </FileUpload.Dropzone>
+        <FileUpload.Trigger class="px-4 py-2 bg-sky-500 text-white rounded">
+          Choose PDF files
+        </FileUpload.Trigger>
+        <FileUpload.Context>
+          {(context) => (
+            <>
+              <FileUpload.ItemGroup class="mt-4">
+                <For each={context().acceptedFiles}>
+                  {(file) => (
+                    <FileUpload.Item
+                      file={file}
+                      class="flex items-center justify-between p-2 mb-2 bg-white border rounded"
                     >
-                      ↑
-                    </button>
-                    <button 
-                      onClick={() => moveFileDown(index())}
-                      disabled={index() === pdfFiles().length - 1}
-                      class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
-                      title="Move Down"
-                    >
-                      ↓
-                    </button>
-                    <button 
-                      onClick={() => removeFile(index())}
-                      class="px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200"
-                      title="Remove"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              )}
-            </For>
-          </div>
-        </div>
-
-        <div class="mb-6">
-          <label class="block text-gray-700 text-sm font-bold mb-2" for="fileName">
-            Output filename:
-          </label>
-          <input
-            type="text"
-            id="fileName"
-            value={fileName()}
-            onInput={(e) => setFileName(e.target.value)}
-            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-          />
-        </div>
-      </Show>
-
-      <button
-        onClick={mergePdfs}
-        disabled={isMerging() || pdfFiles().length === 0}
-        class={`bg-sky-500 hover:bg-sky-700 text-white font-bold py-3 px-6 rounded focus:outline-none focus:shadow-outline ${
-          isMerging() || pdfFiles().length === 0 ? "opacity-50 cursor-not-allowed" : ""
-        }`}
-      >
-        {isMerging() ? "Merging..." : "Merge PDFs"}
-      </button>
+                      <div>
+                        <FileUpload.ItemName class="font-medium" />
+                        <FileUpload.ItemSizeText class="text-sm text-gray-500" />
+                      </div>
+                      <FileUpload.ItemDeleteTrigger class="px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200">
+                        ×
+                      </FileUpload.ItemDeleteTrigger>
+                    </FileUpload.Item>
+                  )}
+                </For>
+              </FileUpload.ItemGroup>
+              <button
+                onClick={() => mergePdfs(context().acceptedFiles)}
+                disabled={isMerging() || context().acceptedFiles.length === 0}
+                class={`bg-sky-500 hover:bg-sky-700 text-white font-bold py-3 px-6 rounded focus:outline-none focus:shadow-outline ${
+                  isMerging() || context().acceptedFiles.length === 0
+                    ? "opacity-50 cursor-not-allowed"
+                    : ""
+                }`}
+              >
+                {isMerging() ? "Merging..." : "Merge PDFs"}
+              </button>
+            </>
+          )}
+        </FileUpload.Context>
+        <FileUpload.HiddenInput />
+      </FileUpload.Root>
     </main>
   );
 }
